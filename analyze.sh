@@ -145,7 +145,7 @@ json_output=$(jq -n \
   '[
      {
        "directory": $dir,
-       "command": "clang -g -O0 -I/usr/include -c main_original.c",
+       "command": "clang-18 -g -O0 -I/usr/include -c main_original.c",
        "file": "main_original.c"
      }
    ]')

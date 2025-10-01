@@ -6,7 +6,7 @@ for filename in ${filenames[@]}
 do
   noextn="${filename%.*}"
 
-  clang -fplugin=Talp.so \
+  clang-18 -fplugin=Talp.so \
   -Xclang -plugin -Xclang talp \
   -Xclang -plugin-arg-talp -Xclang -target-function \
   -Xclang -plugin-arg-talp -Xclang main \

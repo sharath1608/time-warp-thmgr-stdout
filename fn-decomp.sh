@@ -6,7 +6,7 @@ for filename in ${filenames[@]}
 do
   noextn="${filename%.*}"
 
-  clang -fplugin=FunctionDecomp.so \
+  clang-18 -fplugin=FunctionDecomp.so \
   -Xclang -plugin -Xclang fn-decomp \
   -Xclang -plugin-arg-fn-decomp -Xclang -target-function \
   -Xclang -plugin-arg-fn-decomp -Xclang main \
