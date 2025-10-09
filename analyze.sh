@@ -154,22 +154,29 @@ json_output=$(jq -n \
 echo "$json_output" > compile_commands.json
 echo "JSON data written to compile_commands.json"
 
-# Generate parallel analysis
-/usr/bin/clang-18 -g -emit-llvm -S -o main_original.ll main_original.c
-/usr/bin/opt-18 -load-pass-plugin=GanymedeAnalysisPlugin.so -passes="ganymede-analysis" main_original.ll
-
-# Generate standalone parallel code
-/usr/bin/ganymede-codegen --analysis-file=parallelization_analysis.json --codegen-type=standalone main_original.c > main.c
+## Generate parallel analysis
+#/usr/bin/clang-18 -g -emit-llvm -S -o main_original.ll main_original.c
+#/usr/bin/opt-18 -load-pass-plugin=GanymedeAnalysisPlugin.so -passes="ganymede-analysis" main_original.ll
+#
+## Generate standalone parallel code
+#/usr/bin/ganymede-codegen --analysis-file=parallelization_analysis.json --codegen-type=standalone main_original.c > main.c
+#
+## HACK - START
+## HACK - fusion currently supports a standalone threadpool
+## HACK - Remove when fusion supports a shared threadpool
+#
+## Generate thread manager parallel code
+##/usr/bin/ganymede-codegen --analysis-file=parallelization_analysis.json --codegen-type=thmgr main_original.c > main_service.c
+#cp main.c main_service.c
+#sed -i 's/main(int/main_worker(int/' main_service.c
+#sed -i 's/atoi(argv\[argc-1\])/atoi(argv[argc-2])/' main_service.c
+#
+## HACK -END
 
 # HACK - START
-# HACK - fusion currently supports a standalone threadpool
-# HACK - Remove when fusion supports a shared threadpool
 
-# Generate thread manager parallel code
-#/usr/bin/ganymede-codegen --analysis-file=parallelization_analysis.json --codegen-type=thmgr main_original.c > main_service.c
-cp main.c main_service.c
-sed -i 's/main(int/main_worker(int/' main_service.c
-sed -i 's/atoi(argv\[argc-1\])/atoi(argv[argc-2])/' main_service.c
+mv main.BAK main.c
+mv main_service.BAK main_service.c
 
 # HACK -END
 
