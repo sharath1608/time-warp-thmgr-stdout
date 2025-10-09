@@ -1,253 +1,204 @@
+// Dynamic Time Warping (DTW) algorithm, which is widely used in speech recognition, time series analysis, and pattern matching.
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <string.h>
+#include <float.h>
 #include <time.h>
 
-#define MAX_PIXEL_VALUE 255
-#define KERNEL_SIZE 3
-#define HISTOGRAM_SIZE 256
+#define MAX_SEQUENCE_LENGTH 10000
+#define WINDOW_SIZE 100  // Sakoe-Chiba band width
 
-typedef unsigned char pixel_t;
-
-// Structure to hold image data
+// Structure to store DTW result
 typedef struct {
-    pixel_t* data;
-    int width;
-    int height;
-} Image;
+    double distance;
+    int* path_i;
+    int* path_j;
+    int path_length;
+} DTWResult;
 
-// Function to create new image
-Image* create_image(int width, int height) {
-    Image* img = (Image*)malloc(sizeof(Image));
-    img->width = width;
-    img->height = height;
-    img->data = (pixel_t*)calloc(width * height, sizeof(pixel_t));
-    return img;
-}
-
-// Function to free image
-void free_image(Image* img) {
-    free(img->data);
-    free(img);
-}
-
-// Function to get pixel value
-pixel_t get_pixel(Image* img, int x, int y) {
-    if (x < 0 || x >= img->width || y < 0 || y >= img->height) {
-        return 0;
+// Function to generate random sequence
+void generate_sequence(double* sequence, int length) {
+    for(int i = 0; i < length; i++) {
+        sequence[i] = ((double)rand() / RAND_MAX) * 100.0;
     }
-    return img->data[y * img->width + x];
 }
 
-// Function to set pixel value
-void set_pixel(Image* img, int x, int y, pixel_t value) {
-    if (x < 0 || x >= img->width || y < 0 || y >= img->height) {
-        return;
+// Function to calculate Euclidean distance
+double calculate_distance(double a, double b) {
+    return (a - b) * (a - b);
+}
+
+// Function to find minimum of three values
+double min3(double a, double b, double c) {
+    return fmin(fmin(a, b), c);
+}
+
+// Main DTW implementation with windowing
+DTWResult* compute_dtw(double* sequence1, int len1, 
+                      double* sequence2, int len2) {
+    // Allocate cost matrix
+    double** cost_matrix = (double**)malloc(len1 * sizeof(double*));
+    for(int i = 0; i < len1; i++) {
+        cost_matrix[i] = (double*)malloc(len2 * sizeof(double));
+        for(int j = 0; j < len2; j++) {
+            cost_matrix[i][j] = DBL_MAX;
+        }
     }
-    img->data[y * img->width + x] = value;
-}
 
-// Sobel edge detection
-Image* sobel_edge_detection(Image* input) {
-    // Sobel kernels
-    const int sobel_x[3][3] = {
-        {-1, 0, 1},
-        {-2, 0, 2},
-        {-1, 0, 1}
-    };
-    const int sobel_y[3][3] = {
-        {-1, -2, -1},
-        {0, 0, 0},
-        {1, 2, 1}
-    };
+    // Initialize first element
+    cost_matrix[0][0] = calculate_distance(sequence1[0], sequence2[0]);
+
+    // Initialize first row and column
+    for(int i = 1; i < len1; i++) {
+        if(i <= WINDOW_SIZE) {
+            cost_matrix[i][0] = cost_matrix[i-1][0] + 
+                               calculate_distance(sequence1[i], sequence2[0]);
+        }
+    }
+    for(int j = 1; j < len2; j++) {
+        if(j <= WINDOW_SIZE) {
+            cost_matrix[0][j] = cost_matrix[0][j-1] + 
+                               calculate_distance(sequence1[0], sequence2[j]);
+        }
+    }
+
+    // Fill cost matrix with windowing (Sakoe-Chiba band)
+    for(int i = 1; i < len1; i++) {
+        int start = (i - WINDOW_SIZE > 1) ? i - WINDOW_SIZE : 1;
+        int end = (i + WINDOW_SIZE < len2) ? i + WINDOW_SIZE : len2;
+        
+        for(int j = start; j < end; j++) {
+            double cost = calculate_distance(sequence1[i], sequence2[j]);
+            cost_matrix[i][j] = cost + min3(
+                cost_matrix[i-1][j],    // insertion
+                cost_matrix[i][j-1],    // deletion
+                cost_matrix[i-1][j-1]   // match
+            );
+        }
+    }
+
+    // Backtracking to find optimal path
+    DTWResult* result = (DTWResult*)malloc(sizeof(DTWResult));
+    result->path_i = (int*)malloc((len1 + len2) * sizeof(int));
+    result->path_j = (int*)malloc((len1 + len2) * sizeof(int));
     
-    Image* output = create_image(input->width, input->height);
+    int path_index = 0;
+    int i = len1 - 1;
+    int j = len2 - 1;
     
-    for (int y = 1; y < input->height - 1; y++) {
-        for (int x = 1; x < input->width - 1; x++) {
-            int gx = 0, gy = 0;
+    while(i > 0 || j > 0) {
+        result->path_i[path_index] = i;
+        result->path_j[path_index] = j;
+        path_index++;
+        
+        if(i == 0) {
+            j--;
+        } else if(j == 0) {
+            i--;
+        } else {
+            double min_cost = min3(
+                cost_matrix[i-1][j],
+                cost_matrix[i][j-1],
+                cost_matrix[i-1][j-1]
+            );
             
-            // Apply kernels
-            for (int ky = -1; ky <= 1; ky++) {
-                for (int kx = -1; kx <= 1; kx++) {
-                    pixel_t pixel = get_pixel(input, x + kx, y + ky);
-                    gx += pixel * sobel_x[ky + 1][kx + 1];
-                    gy += pixel * sobel_y[ky + 1][kx + 1];
-                }
+            if(min_cost == cost_matrix[i-1][j-1]) {
+                i--; j--;
+            } else if(min_cost == cost_matrix[i-1][j]) {
+                i--;
+            } else {
+                j--;
             }
-            
-            // Calculate magnitude
-            int magnitude = (int)sqrt(gx * gx + gy * gy);
-            magnitude = magnitude > MAX_PIXEL_VALUE ? MAX_PIXEL_VALUE : magnitude;
-            set_pixel(output, x, y, (pixel_t)magnitude);
         }
     }
     
-    return output;
-}
+    // Add final point
+    result->path_i[path_index] = 0;
+    result->path_j[path_index] = 0;
+    path_index++;
+    
+    result->path_length = path_index;
+    result->distance = cost_matrix[len1-1][len2-1];
 
-// Gaussian blur
-Image* gaussian_blur(Image* input) {
-    // Gaussian kernel (3x3)
-    const float kernel[3][3] = {
-        {1.0/16, 2.0/16, 1.0/16},
-        {2.0/16, 4.0/16, 2.0/16},
-        {1.0/16, 2.0/16, 1.0/16}
-    };
-    
-    Image* output = create_image(input->width, input->height);
-    
-    for (int y = 1; y < input->height - 1; y++) {
-        for (int x = 1; x < input->width - 1; x++) {
-            float sum = 0.0;
-            
-            // Apply kernel
-            for (int ky = -1; ky <= 1; ky++) {
-                for (int kx = -1; kx <= 1; kx++) {
-                    pixel_t pixel = get_pixel(input, x + kx, y + ky);
-                    sum += pixel * kernel[ky + 1][kx + 1];
-                }
-            }
-            
-            set_pixel(output, x, y, (pixel_t)sum);
-        }
+    // Free cost matrix
+    for(int i = 0; i < len1; i++) {
+        free(cost_matrix[i]);
     }
-    
-    return output;
-}
+    free(cost_matrix);
 
-// Histogram equalization
-Image* histogram_equalization(Image* input) {
-    int histogram[HISTOGRAM_SIZE] = {0};
-    float cdf[HISTOGRAM_SIZE] = {0.0};
-    int pixel_count = input->width * input->height;
-    Image* output = create_image(input->width, input->height);
-    
-    // Calculate histogram
-    for (int i = 0; i < pixel_count; i++) {
-        histogram[input->data[i]]++;
-    }
-    
-    // Calculate cumulative distribution function
-    cdf[0] = histogram[0];
-    for (int i = 1; i < HISTOGRAM_SIZE; i++) {
-        cdf[i] = cdf[i-1] + histogram[i];
-    }
-    
-    // Normalize CDF
-    for (int i = 0; i < HISTOGRAM_SIZE; i++) {
-        cdf[i] /= pixel_count;
-    }
-    
-    // Apply equalization
-    for (int i = 0; i < pixel_count; i++) {
-        output->data[i] = (pixel_t)(cdf[input->data[i]] * MAX_PIXEL_VALUE);
-    }
-    
-    return output;
-}
-
-// Morphological dilation
-Image* dilate(Image* input) {
-    Image* output = create_image(input->width, input->height);
-    
-    for (int y = 1; y < input->height - 1; y++) {
-        for (int x = 1; x < input->width - 1; x++) {
-            pixel_t max_value = 0;
-            
-            // Find maximum in 3x3 neighborhood
-            for (int ky = -1; ky <= 1; ky++) {
-                for (int kx = -1; kx <= 1; kx++) {
-                    pixel_t pixel = get_pixel(input, x + kx, y + ky);
-                    if (pixel > max_value) {
-                        max_value = pixel;
-                    }
-                }
-            }
-            
-            set_pixel(output, x, y, max_value);
-        }
-    }
-    
-    return output;
-}
-
-// Morphological erosion
-Image* erode(Image* input) {
-    Image* output = create_image(input->width, input->height);
-    
-    for (int y = 1; y < input->height - 1; y++) {
-        for (int x = 1; x < input->width - 1; x++) {
-            pixel_t min_value = MAX_PIXEL_VALUE;
-            
-            // Find minimum in 3x3 neighborhood
-            for (int ky = -1; ky <= 1; ky++) {
-                for (int kx = -1; kx <= 1; kx++) {
-                    pixel_t pixel = get_pixel(input, x + kx, y + ky);
-                    if (pixel < min_value) {
-                        min_value = pixel;
-                    }
-                }
-            }
-            
-            set_pixel(output, x, y, min_value);
-        }
-    }
-    
-    return output;
-}
-
-// Function to apply all transformations in sequence
-Image* process_image(Image* input) {
-    Image* temp1, *temp2, *temp3, *temp4, *result;
-    
-    // Apply gaussian blur first to reduce noise
-    temp1 = gaussian_blur(input);
-    
-    // Apply edge detection
-    temp2 = sobel_edge_detection(temp1);
-    
-    // Enhance edges through histogram equalization
-    temp3 = histogram_equalization(temp2);
-    
-    // Apply morphological operations to clean up edges
-    temp4 = dilate(temp3);
-    result = erode(temp4);
-    
-    // Clean up intermediate results
-    free_image(temp1);
-    free_image(temp2);
-    free_image(temp3);
-    free_image(temp4);
-    
     return result;
+}
+
+// Function to perform subsequence DTW search
+int find_best_match(double* long_sequence, int long_length,
+                   double* pattern, int pattern_length,
+                   double* best_distance) {
+    int best_position = 0;
+    *best_distance = DBL_MAX;
+
+    // Sliding window approach
+    for(int i = 0; i <= long_length - pattern_length; i++) {
+        // Extract subsequence
+        double* subsequence = (double*)malloc(pattern_length * sizeof(double));
+        for(int j = 0; j < pattern_length; j++) {
+            subsequence[j] = long_sequence[i + j];
+        }
+
+        // Compute DTW
+        DTWResult* result = compute_dtw(subsequence, pattern_length,
+                                      pattern, pattern_length);
+
+        // Update best match if necessary
+        if(result->distance < *best_distance) {
+            *best_distance = result->distance;
+            best_position = i;
+        }
+
+        // Cleanup
+        free(subsequence);
+        free(result->path_i);
+        free(result->path_j);
+        free(result);
+    }
+
+    return best_position;
 }
 
 int main(int argc, char * argv[]) {
 
-    int size = atoi(argv[1]);
+    srand(time(NULL));
 
-    int IMG_WIDTH = size;
-    int IMG_HEIGHT = size;
-
-    // Create test image with random noise
-    Image* input = create_image(IMG_WIDTH, IMG_HEIGHT);
-    for (int i = 0; i < IMG_WIDTH * IMG_HEIGHT; i++) {
-        input->data[i] = rand() % (MAX_PIXEL_VALUE + 1);
-    }
+    // Generate sample sequences
+    int long_length = atoi(argv[1]);
+    int pattern_length = 500;
     
-    // Process image and measure time
+    double* long_sequence = (double*)malloc(long_length * sizeof(double));
+    double* pattern = (double*)malloc(pattern_length * sizeof(double));
+    
+    generate_sequence(long_sequence, long_length);
+    generate_sequence(pattern, pattern_length);
+
+    // Measure execution time
     clock_t start = clock();
-    Image* output = process_image(input);
+    
+    // Find best matching subsequence
+    double best_distance;
+    int best_position = find_best_match(long_sequence, long_length,
+                                      pattern, pattern_length,
+                                      &best_distance);
+    
     clock_t end = clock();
-    
     double cpu_time = ((double) (end - start)) / CLOCKS_PER_SEC;
-    printf("Processing time: %f seconds\n", cpu_time);
-    
-    // Clean up
-    free_image(input);
-    free_image(output);
-    
+
+    // Print results
+    printf("Best match found at position: %d\n", best_position);
+    printf("Distance: %f\n", best_distance);
+    printf("Execution time: %f seconds\n", cpu_time);
+
+    // Cleanup
+    free(long_sequence);
+    free(pattern);
+
     return 0;
 }

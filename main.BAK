@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -10,10 +11,25 @@
 #define HISTOGRAM_SIZE 256
 
 typedef unsigned char pixel_t;
+=======
+// Dynamic Time Warping (DTW) algorithm, which is widely used in speech recognition, time series analysis, and pattern matching.
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <float.h>
+#include <time.h>
+#include <pthread.h>
+#include <thpool.h>
+
+#define MAX_SEQUENCE_LENGTH 10000
+#define WINDOW_SIZE 100  // Sakoe-Chiba band width
+>>>>>>> sb-working
 
 int num_threads = 4;
 threadpool thpool;
 
+<<<<<<< HEAD
 // Structure to hold image data
 typedef struct {
     pixel_t* data;
@@ -353,10 +369,130 @@ Image* process_image(Image* input) {
     free_image(temp2);
     free_image(temp3);
     free_image(temp4);
+=======
+// Structure to store DTW result
+typedef struct {
+    double distance;
+    int* path_i;
+    int* path_j;
+    int path_length;
+} DTWResult;
+
+// Function to generate random sequence
+void generate_sequence(double* sequence, int length) {
+    for(int i = 0; i < length; i++) {
+        sequence[i] = ((double)rand() / RAND_MAX) * 100.0;
+    }
+}
+
+// Function to calculate Euclidean distance
+double calculate_distance(double a, double b) {
+    return (a - b) * (a - b);
+}
+
+// Function to find minimum of three values
+double min3(double a, double b, double c) {
+    return fmin(fmin(a, b), c);
+}
+
+// Main DTW implementation with windowing
+DTWResult* compute_dtw(double* sequence1, int len1, 
+                      double* sequence2, int len2) {
+    // Allocate cost matrix
+    double** cost_matrix = (double**)malloc(len1 * sizeof(double*));
+    for(int i = 0; i < len1; i++) {
+        cost_matrix[i] = (double*)malloc(len2 * sizeof(double));
+        for(int j = 0; j < len2; j++) {
+            cost_matrix[i][j] = DBL_MAX;
+        }
+    }
+
+    // Initialize first element
+    cost_matrix[0][0] = calculate_distance(sequence1[0], sequence2[0]);
+
+    // Initialize first row and column
+    for(int i = 1; i < len1; i++) {
+        if(i <= WINDOW_SIZE) {
+            cost_matrix[i][0] = cost_matrix[i-1][0] + 
+                               calculate_distance(sequence1[i], sequence2[0]);
+        }
+    }
+    for(int j = 1; j < len2; j++) {
+        if(j <= WINDOW_SIZE) {
+            cost_matrix[0][j] = cost_matrix[0][j-1] + 
+                               calculate_distance(sequence1[0], sequence2[j]);
+        }
+    }
+
+    // Fill cost matrix with windowing (Sakoe-Chiba band)
+    for(int i = 1; i < len1; i++) {
+        int start = (i - WINDOW_SIZE > 1) ? i - WINDOW_SIZE : 1;
+        int end = (i + WINDOW_SIZE < len2) ? i + WINDOW_SIZE : len2;
+        
+        for(int j = start; j < end; j++) {
+            double cost = calculate_distance(sequence1[i], sequence2[j]);
+            cost_matrix[i][j] = cost + min3(
+                cost_matrix[i-1][j],    // insertion
+                cost_matrix[i][j-1],    // deletion
+                cost_matrix[i-1][j-1]   // match
+            );
+        }
+    }
+
+    // Backtracking to find optimal path
+    DTWResult* result = (DTWResult*)malloc(sizeof(DTWResult));
+    result->path_i = (int*)malloc((len1 + len2) * sizeof(int));
+    result->path_j = (int*)malloc((len1 + len2) * sizeof(int));
+    
+    int path_index = 0;
+    int i = len1 - 1;
+    int j = len2 - 1;
+    
+    while(i > 0 || j > 0) {
+        result->path_i[path_index] = i;
+        result->path_j[path_index] = j;
+        path_index++;
+        
+        if(i == 0) {
+            j--;
+        } else if(j == 0) {
+            i--;
+        } else {
+            double min_cost = min3(
+                cost_matrix[i-1][j],
+                cost_matrix[i][j-1],
+                cost_matrix[i-1][j-1]
+            );
+            
+            if(min_cost == cost_matrix[i-1][j-1]) {
+                i--; j--;
+            } else if(min_cost == cost_matrix[i-1][j]) {
+                i--;
+            } else {
+                j--;
+            }
+        }
+    }
+    
+    // Add final point
+    result->path_i[path_index] = 0;
+    result->path_j[path_index] = 0;
+    path_index++;
+    
+    result->path_length = path_index;
+    result->distance = cost_matrix[len1-1][len2-1];
+
+    // Free cost matrix
+    for(int i = 0; i < len1; i++) {
+        free(cost_matrix[i]);
+    }
+    free(cost_matrix);
+>>>>>>> sb-working
 
     return result;
 }
 
+<<<<<<< HEAD
 int main(int argc, char * argv[]) {
 
     int size = atoi(argv[1]);
@@ -385,6 +521,152 @@ int main(int argc, char * argv[]) {
     // Clean up
     free_image(input);
     free_image(output);
+=======
+// Thread data structure for threadpool
+typedef struct {
+    double* long_sequence;
+    int long_length;
+    double* pattern;
+    int pattern_length;
+    int start_idx;
+    int end_idx;
+    double best_distance;
+    int best_position;
+    pthread_mutex_t* mutex;
+} ThreadPoolTaskData;
+
+// Worker function for threadpool
+void threadpool_worker(void* arg) {
+    ThreadPoolTaskData* data = (ThreadPoolTaskData*)arg;
+
+    double local_best_distance = DBL_MAX;
+    int local_best_position = data->start_idx;
+
+    for(int i = data->start_idx; i < data->end_idx; i++) {
+        // Extract subsequence
+        double* subsequence = (double*)malloc(data->pattern_length * sizeof(double));
+        for(int j = 0; j < data->pattern_length; j++) {
+            subsequence[j] = data->long_sequence[i + j];
+        }
+
+        // Compute DTW
+        DTWResult* result = compute_dtw(subsequence, data->pattern_length,
+                                      data->pattern, data->pattern_length);
+
+        // Update local best match if necessary
+        if(result->distance < local_best_distance) {
+            local_best_distance = result->distance;
+            local_best_position = i;
+        }
+
+        // Cleanup
+        free(subsequence);
+        free(result->path_i);
+        free(result->path_j);
+        free(result);
+    }
+
+    // Update global best with mutex protection
+    pthread_mutex_lock(data->mutex);
+    if(local_best_distance < data->best_distance) {
+        data->best_distance = local_best_distance;
+        data->best_position = local_best_position;
+    }
+    pthread_mutex_unlock(data->mutex);
+
+    free(data);
+}
+
+// Function to perform subsequence DTW search (threadpool version)
+int find_best_match(double* long_sequence, int long_length,
+                   double* pattern, int pattern_length,
+                   double* best_distance) {
+    int num_iterations = long_length - pattern_length + 1;
+
+    // Shared state for results
+    pthread_mutex_t result_mutex = PTHREAD_MUTEX_INITIALIZER;
+    double global_best_distance = DBL_MAX;
+    int global_best_position = 0;
+
+    int chunk_size = num_iterations / num_threads;
+
+    // Add work to threadpool
+    for(int t = 0; t < num_threads; t++) {
+        ThreadPoolTaskData* task_data = (ThreadPoolTaskData*)malloc(sizeof(ThreadPoolTaskData));
+        task_data->long_sequence = long_sequence;
+        task_data->long_length = long_length;
+        task_data->pattern = pattern;
+        task_data->pattern_length = pattern_length;
+        task_data->start_idx = t * chunk_size;
+
+        if(t == num_threads - 1) {
+            task_data->end_idx = num_iterations;
+        } else {
+            task_data->end_idx = (t + 1) * chunk_size;
+        }
+
+        task_data->best_distance = global_best_distance;
+        task_data->best_position = global_best_position;
+        task_data->mutex = &result_mutex;
+
+        thpool_add_work(thpool, threadpool_worker, (void*)task_data);
+    }
+
+    // Wait for all work to complete
+    thpool_wait(thpool);
+
+    // Get the final results (read from the shared variables through the mutex)
+    pthread_mutex_lock(&result_mutex);
+    *best_distance = global_best_distance;
+    int best_position = global_best_position;
+    pthread_mutex_unlock(&result_mutex);
+
+    pthread_mutex_destroy(&result_mutex);
+
+    return best_position;
+}
+
+int main(int argc, char * argv[]) {
+
+    srand(time(NULL));
+
+    // Generate sample sequences
+    int long_length = atoi(argv[1]);
+    int pattern_length = 500;
+
+     num_threads = atoi(argv[argc-1]);
+    // Create threadpool
+    thpool = thpool_init(num_threads);
+    
+    double* long_sequence = (double*)malloc(long_length * sizeof(double));
+    double* pattern = (double*)malloc(pattern_length * sizeof(double));
+    
+    generate_sequence(long_sequence, long_length);
+    generate_sequence(pattern, pattern_length);
+
+    // Measure execution time
+    clock_t start = clock();
+    
+    // Find best matching subsequence
+    double best_distance;
+    int best_position = find_best_match(long_sequence, long_length,
+                                      pattern, pattern_length,
+                                      &best_distance);
+    
+    clock_t end = clock();
+    double cpu_time = ((double) (end - start)) / CLOCKS_PER_SEC;
+
+    // Print results
+    printf("Best match found at position: %d\n", best_position);
+    printf("Distance: %f\n", best_distance);
+    printf("Execution time: %f seconds\n", cpu_time);
+
+    // Cleanup
+    free(long_sequence);
+    free(pattern);
+
+    // Cleanup
+>>>>>>> sb-working
     thpool_destroy(thpool);
 
     return 0;
