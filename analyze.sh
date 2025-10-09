@@ -219,7 +219,7 @@ for i in ${iva[@]}
 do
   # time
   start=`date +%s.%N`;\
-  ./$algo_orig $i $i;\
+  ./$algo_orig $i;\
   end=`date +%s.%N`;\
   time_serial+=(`printf '%.8f' $( echo "$end - $start" | bc -l )`);
 
@@ -240,7 +240,7 @@ count=1
 for i in ${iva[@]}
 do
   # memory
-  heaptrack -o "$algo.$count" ./$algo_orig $i $i;\
+  heaptrack -o "$algo.$count" ./$algo_orig $i;\
   space_serial+=(`heaptrack --analyze "$algo.$count.zst"  | grep "peak heap memory consumption" | awk '{print $5}'`);
   count=$((count+1))
 
@@ -383,7 +383,7 @@ do
 {
   "repo": "$repo_name",
   "core": $i,
-  "argv": ["main", "$iva_data", "$iva_data", "$i"]
+  "argv": ["main", "$iva_data", "$i"]
 }
 EOF
 )
@@ -412,7 +412,7 @@ for i in ${core[@]}
 do
   # time using direct execution
   start=`date +%s.%N`;\
-  ./$algo $iva_data $iva_data $i;\
+  ./$algo $iva_data $i;\
   end=`date +%s.%N`;\
   time_parallel_slow+=(`printf '%.8f' $( echo "$end - $start" | bc -l )`);
 
@@ -433,7 +433,7 @@ count=1
 for i in ${core[@]}
 do
   # memory
-  heaptrack -o "$algo.$count" ./$algo $iva_data $iva_data $i;\
+  heaptrack -o "$algo.$count" ./$algo $iva_data $i;\
   space_parallel+=(`heaptrack --analyze "$algo.$count.zst"  | grep "peak heap memory consumption" | awk '{print $5}'`);
   count=$((count+1))
 
