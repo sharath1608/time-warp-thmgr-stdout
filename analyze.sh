@@ -178,6 +178,9 @@ echo "JSON data written to compile_commands.json"
 mv main.BAK main.c
 mv main_service.BAK main_service.c
 
+cp main_original-talp.json main-talp.json
+cp main_original-talp.json main_service-talp.json
+
 # HACK -END
 
 # make - serial
