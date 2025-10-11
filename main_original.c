@@ -177,6 +177,8 @@ int main(int argc, char * argv[]) {
     // Generate sample sequences
     int long_length = atoi(argv[1]);
     int pattern_length = 500;
+
+    printf("Sequence length:%d, pattern length: %d\n", long_length, pattern_length);
     
     double* long_sequence = (double*)malloc(long_length * sizeof(double));
     double* pattern = (double*)malloc(pattern_length * sizeof(double));

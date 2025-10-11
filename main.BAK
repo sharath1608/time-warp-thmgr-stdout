@@ -255,7 +255,9 @@ int main(int argc, char * argv[]) {
      num_threads = atoi(argv[argc-1]);
     // Create threadpool
     thpool = thpool_init(num_threads);
-    
+
+    printf("Sequence length: %d, pattern length: %d\n", long_length, pattern_length);
+
     double* long_sequence = (double*)malloc(long_length * sizeof(double));
     double* pattern = (double*)malloc(pattern_length * sizeof(double));
     
