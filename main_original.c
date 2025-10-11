@@ -167,6 +167,11 @@ int find_best_match(double* long_sequence, int long_length,
 
 int main(int argc, char * argv[]) {
 
+    if(argc < 2){
+      printf("Usage: main <sequence ength>\n");
+      return 1;
+    }
+
     srand(time(NULL));
 
     // Generate sample sequences

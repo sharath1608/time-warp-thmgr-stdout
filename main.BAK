@@ -241,6 +241,11 @@ int find_best_match(double* long_sequence, int long_length,
 
 int main(int argc, char * argv[]) {
 
+    if(argc < 3){
+      printf("Usage: %s <sequence length> <num threads>\n", argv[0]);
+      return 1;;
+    }
+
     srand(time(NULL));
 
     // Generate sample sequences
