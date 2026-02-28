@@ -190,47 +190,59 @@ json_output=$(jq -n \
 echo "$json_output" > compile_commands.json
 echo "JSON data written to compile_commands.json"
 
-# TALP coverage generation - start
-echo "TALP coverage generation"
+# # TALP coverage generation - start
+# echo "TALP coverage generation"
 
-cp main_original.c main_original.bak.c
-argv-to-klee main_original.c > main_original.c.tmp && mv main_original.c.tmp main_original.c
+# cp main_original.c main_original.bak.c
+# argv-to-klee main_original.c > main_original.c.tmp && mv main_original.c.tmp main_original.c
 
-if docker exec talp-cov sh -c "cd $repo_path && analyze main_original.c"; then
-  echo "TALP coverage generated successfully"
-else
-  echo "TALP coverage generation failed with exit code $?"
-fi
+# if docker exec talp-cov sh -c "cd $repo_path && analyze main_original.c"; then
+#   echo "TALP coverage generated successfully"
+# else
+#   echo "TALP coverage generation failed with exit code $?"
+# fi
 
-mv main_original.bak.c main_original.c
+# mv main_original.bak.c main_original.c
 
-for dir in klee-out-*-replay-*; do
-    if [ -d "$dir" ]; then
-        klee_dir="$dir"
-        break
-    fi
-done
-echo "$klee_dir"
+# for dir in klee-out-*-replay-*; do
+#     if [ -d "$dir" ]; then
+#         klee_dir="$dir"
+#         break
+#     fi
+# done
+# echo "$klee_dir"
 
-cov-callgraph-generator --cov-file "$klee_dir/test000001-replay/test000001.cov" --output-file test000001.covgraph.json -p .
-# TALP coverage generation - end
+# cov-callgraph-generator --cov-file "$klee_dir/test000001-replay/test000001.cov" --output-file test000001.covgraph.json -p .
+# # TALP coverage generation - end
 
-# Generate parallel analysis
-/usr/bin/clang-18 -g -emit-llvm -S -o main_original.ll main_original.c
-/usr/bin/opt-18 -load-pass-plugin=GanymedeAnalysisPlugin.so -passes="ganymede-analysis" main_original.ll
+# # Generate parallel analysis
+# /usr/bin/clang-18 -g -emit-llvm -S -o main_original.ll main_original.c
+# /usr/bin/opt-18 -load-pass-plugin=GanymedeAnalysisPlugin.so -passes="ganymede-analysis" main_original.ll
 
-# Generate standalone parallel code
-/usr/bin/ganymede-codegen --analysis-file=parallelization_analysis.json --codegen-type=standalone main_original.c > main.c
+# # Generate standalone parallel code
+# /usr/bin/ganymede-codegen --analysis-file=parallelization_analysis.json --codegen-type=standalone main_original.c > main.c
+
+# # HACK - START
+# # HACK - fusion currently supports a standalone threadpool
+# # HACK - Remove when fusion supports a shared threadpool
+
+# # Generate thread manager parallel code
+# #/usr/bin/ganymede-codegen --analysis-file=parallelization_analysis.json --codegen-type=thmgr main_original.c > main_service.c
+# cp main.c main_service.c
+# sed -i 's/main(int/main_worker(int/' main_service.c
+# sed -i 's/atoi(argv\[argc-1\])/atoi(argv[argc-2])/' main_service.c
+
+# # HACK -END
 
 # HACK - START
-# HACK - fusion currently supports a standalone threadpool
-# HACK - Remove when fusion supports a shared threadpool
 
-# Generate thread manager parallel code
-#/usr/bin/ganymede-codegen --analysis-file=parallelization_analysis.json --codegen-type=thmgr main_original.c > main_service.c
-cp main.c main_service.c
-sed -i 's/main(int/main_worker(int/' main_service.c
-sed -i 's/atoi(argv\[argc-1\])/atoi(argv[argc-2])/' main_service.c
+mv main.BAK main.c
+mv main_service.BAK main_service.c
+
+cp main_original-talp.json main-talp.json
+cp main_original-talp.json main_service-talp.json
+
+cp main_original-fn-decomp.json main-fn-decomp.json
 
 # HACK -END
 
